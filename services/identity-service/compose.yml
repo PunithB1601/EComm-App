@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: identity_db
+      MYSQL_USER: identity
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - identity_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --user=$$MYSQL_USER --database=$$MYSQL_DATABASE --execute='SELECT 1' --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  identity:
+    build: .
+    image: ecomm-identity:local
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    ports:
+      - "127.0.0.1:${PORT:-8081}:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/identity_db?connectionTimeZone=UTC
+      DB_USERNAME: identity
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8081}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-ecomm-api}
+      JWT_KEY_ID: ${JWT_KEY_ID:-identity-1}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    depends_on:
+      mysql:
+        condition: service_healthy
+secrets:
+  jwt_private_key:
+    file: ./.local/keys/private.pem
+  jwt_public_key:
+    file: ./.local/keys/public.pem
+volumes:
+  identity_mysql:

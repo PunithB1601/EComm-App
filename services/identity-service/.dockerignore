@@ -1,0 +1,6 @@
+target
+.git
+.env
+.local
+*.pem
+*.key
